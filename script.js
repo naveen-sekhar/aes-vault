@@ -64,6 +64,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up real-time listener
     setupRealtimeListener();
+    
+    // Global error handling for unhandled errors
+    window.addEventListener('error', function(e) {
+        console.error('Global error caught:', e.error);
+        showToast(`Application Error: ${e.error.message}`, 'error');
+    });
+    
+    // Handle unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(e) {
+        console.error('Unhandled promise rejection:', e.reason);
+        showToast(`Network Error: ${e.reason.message || 'Connection failed'}`, 'error');
+    });
 });
 
 // Authentication functions
@@ -71,21 +83,77 @@ function toggleAuthMode() {
     const isLoginVisible = loginForm.style.display !== 'none';
     loginForm.style.display = isLoginVisible ? 'none' : 'block';
     registerForm.style.display = isLoginVisible ? 'block' : 'none';
+    
+    // Clear any error messages when switching forms
+    hideErrorDisplay('loginErrorDisplay');
+    hideErrorDisplay('registerErrorDisplay');
+}
+
+function showErrorDisplay(errorDisplayId, message) {
+    const errorDisplay = document.getElementById(errorDisplayId);
+    const errorMessage = document.getElementById(errorDisplayId.replace('Display', 'Message'));
+    
+    if (errorDisplay && errorMessage) {
+        errorMessage.textContent = message;
+        errorDisplay.style.display = 'flex';
+        
+        // Auto-hide after 10 seconds
+        setTimeout(() => {
+            hideErrorDisplay(errorDisplayId);
+        }, 10000);
+    }
+}
+
+function hideErrorDisplay(errorDisplayId) {
+    const errorDisplay = document.getElementById(errorDisplayId);
+    if (errorDisplay) {
+        errorDisplay.style.display = 'none';
+    }
+}
+
+function showSuccessDisplay(formType, message) {
+    // Create success display if it doesn't exist
+    const form = document.getElementById(formType + 'Form');
+    const existingSuccess = form.querySelector('.success-display');
+    
+    if (existingSuccess) {
+        existingSuccess.remove();
+    }
+    
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-display';
+    successDiv.innerHTML = `
+        <i class="fas fa-check-circle"></i>
+        <span>${message}</span>
+    `;
+    
+    const h2 = form.querySelector('h2');
+    h2.insertAdjacentElement('afterend', successDiv);
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        successDiv.remove();
+    }, 5000);
 }
 
 async function handleLogin(e) {
     e.preventDefault();
     
+    // Clear previous errors
+    hideErrorDisplay('loginErrorDisplay');
+    
     const email = document.getElementById('loginEmail').value.trim();
     const password = document.getElementById('loginPassword').value;
     
     if (!email || !password) {
+        showErrorDisplay('loginErrorDisplay', 'Please fill in all fields');
         showToast('Please fill in all fields', 'error');
         return;
     }
     
     // Basic email validation
     if (!email.includes('@')) {
+        showErrorDisplay('loginErrorDisplay', 'Please enter a valid email address');
         showToast('Please enter a valid email address', 'error');
         return;
     }
@@ -95,6 +163,7 @@ async function handleLogin(e) {
     try {
         console.log('Attempting login with email:', email);
         await auth.signInWithEmailAndPassword(email, password);
+        showSuccessDisplay('login', 'Successfully signed in! Redirecting...');
         showToast('Successfully signed in!', 'success');
     } catch (error) {
         console.error('Login error:', error);
@@ -103,30 +172,54 @@ async function handleLogin(e) {
         
         // More specific error handling
         let errorMessage = '';
+        let userFriendlyMessage = '';
+        
         switch(error.code) {
             case 'auth/invalid-login-credentials':
-                errorMessage = 'Invalid email or password. Please check your credentials or create a new account.';
+                errorMessage = 'Invalid email or password. Please check your credentials.';
+                userFriendlyMessage = '❌ Wrong email or password. Please double-check and try again.';
                 break;
             case 'auth/user-not-found':
                 errorMessage = 'No account found with this email. Please sign up first.';
+                userFriendlyMessage = '❌ Account not found. Click "Sign Up" to create a new account.';
                 break;
             case 'auth/wrong-password':
                 errorMessage = 'Incorrect password. Please try again.';
+                userFriendlyMessage = '❌ Wrong password. Please check your password and try again.';
                 break;
             case 'auth/invalid-email':
                 errorMessage = 'Invalid email address format.';
+                userFriendlyMessage = '❌ Please enter a valid email address.';
                 break;
             case 'auth/user-disabled':
                 errorMessage = 'This account has been disabled.';
+                userFriendlyMessage = '❌ Your account has been disabled. Contact support.';
                 break;
             case 'auth/too-many-requests':
                 errorMessage = 'Too many failed attempts. Please try again later.';
+                userFriendlyMessage = '❌ Too many failed attempts. Wait a few minutes before trying again.';
+                break;
+            case 'auth/network-request-failed':
+                errorMessage = 'Network error. Check your internet connection.';
+                userFriendlyMessage = '❌ Connection error. Please check your internet and try again.';
                 break;
             default:
                 errorMessage = `Login failed: ${error.message}`;
+                userFriendlyMessage = `❌ Login failed: ${error.message}`;
         }
         
+        // Show error on page AND in toast
+        showErrorDisplay('loginErrorDisplay', userFriendlyMessage);
         showToast(errorMessage, 'error');
+        
+        // Also log detailed error for debugging
+        console.error('Detailed error info:', {
+            code: error.code,
+            message: error.message,
+            email: email,
+            timestamp: new Date().toISOString()
+        });
+        
     } finally {
         showLoading(false);
     }
@@ -135,21 +228,27 @@ async function handleLogin(e) {
 async function handleRegister(e) {
     e.preventDefault();
     
+    // Clear previous errors
+    hideErrorDisplay('registerErrorDisplay');
+    
     const email = document.getElementById('registerEmail').value.trim();
     const password = document.getElementById('registerPassword').value;
     
     if (!email || !password) {
+        showErrorDisplay('registerErrorDisplay', 'Please fill in all fields');
         showToast('Please fill in all fields', 'error');
         return;
     }
     
     // Basic email validation
     if (!email.includes('@')) {
+        showErrorDisplay('registerErrorDisplay', 'Please enter a valid email address');
         showToast('Please enter a valid email address', 'error');
         return;
     }
     
     if (password.length < 6) {
+        showErrorDisplay('registerErrorDisplay', 'Password must be at least 6 characters long');
         showToast('Password must be at least 6 characters', 'error');
         return;
     }
@@ -160,7 +259,15 @@ async function handleRegister(e) {
         console.log('Attempting registration with email:', email);
         const userCredential = await auth.createUserWithEmailAndPassword(email, password);
         console.log('Registration successful! User ID:', userCredential.user.uid);
+        
+        showSuccessDisplay('register', '✅ Account created successfully! You can now sign in.');
         showToast('Account created successfully!', 'success');
+        
+        // Auto-switch to login form after successful registration
+        setTimeout(() => {
+            toggleAuthMode();
+        }, 2000);
+        
     } catch (error) {
         console.error('Registration error:', error);
         console.error('Error code:', error.code);
@@ -168,24 +275,46 @@ async function handleRegister(e) {
         
         // More specific error handling
         let errorMessage = '';
+        let userFriendlyMessage = '';
+        
         switch(error.code) {
             case 'auth/email-already-in-use':
                 errorMessage = 'An account with this email already exists. Please sign in instead.';
+                userFriendlyMessage = '❌ Email already registered. Click "Sign In" to login to your account.';
                 break;
             case 'auth/invalid-email':
                 errorMessage = 'Invalid email address format.';
+                userFriendlyMessage = '❌ Please enter a valid email address.';
                 break;
             case 'auth/weak-password':
                 errorMessage = 'Password is too weak. Please use at least 6 characters.';
+                userFriendlyMessage = '❌ Password too weak. Use at least 6 characters with numbers and letters.';
                 break;
             case 'auth/operation-not-allowed':
                 errorMessage = 'Email/password accounts are not enabled. Please contact support.';
+                userFriendlyMessage = '❌ Registration not available. Please contact support.';
+                break;
+            case 'auth/network-request-failed':
+                errorMessage = 'Network error. Check your internet connection.';
+                userFriendlyMessage = '❌ Connection error. Please check your internet and try again.';
                 break;
             default:
                 errorMessage = `Registration failed: ${error.message}`;
+                userFriendlyMessage = `❌ Registration failed: ${error.message}`;
         }
         
+        // Show error on page AND in toast
+        showErrorDisplay('registerErrorDisplay', userFriendlyMessage);
         showToast(errorMessage, 'error');
+        
+        // Log detailed error for debugging
+        console.error('Detailed error info:', {
+            code: error.code,
+            message: error.message,
+            email: email,
+            timestamp: new Date().toISOString()
+        });
+        
     } finally {
         showLoading(false);
     }

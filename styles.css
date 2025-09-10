@@ -246,6 +246,56 @@ body {
     text-decoration: underline;
 }
 
+/* Error Display */
+.error-display {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    animation: slideDown 0.3s ease;
+}
+
+.error-display i {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.success-display {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    animation: slideDown 0.3s ease;
+}
+
+.success-display i {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
 /* Dashboard Section */
 .dashboard-section {
     padding: 2rem 0;
