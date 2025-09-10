@@ -1,0 +1,767 @@
+// Global variables
+let currentUser = null;
+let systemEncryptionKey = 'SecureVault2024'; // System-wide encryption key
+let passwords = [];
+let currentPasswordId = null;
+let editingPasswordId = null;
+
+// DOM elements
+const authSection = document.getElementById('authSection');
+const dashboardSection = document.getElementById('dashboardSection');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+const userInfo = document.getElementById('userInfo');
+const userEmail = document.getElementById('userEmail');
+const passwordsGrid = document.getElementById('passwordsGrid');
+const emptyState = document.getElementById('emptyState');
+const addPasswordModal = document.getElementById('addPasswordModal');
+const viewPasswordModal = document.getElementById('viewPasswordModal');
+const editPasswordModal = document.getElementById('editPasswordModal');
+const passwordForm = document.getElementById('passwordForm');
+const editPasswordForm = document.getElementById('editPasswordForm');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const toast = document.getElementById('toast');
+
+// Authentication state observer
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        currentUser = user;
+        userEmail.textContent = user.email;
+        showDashboard();
+        loadPasswords();
+    } else {
+        currentUser = null;
+        showAuth();
+    }
+});
+
+// Initialize app
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up form event listeners
+    loginForm.addEventListener('submit', handleLogin);
+    registerForm.addEventListener('submit', handleRegister);
+    passwordForm.addEventListener('submit', handleAddPassword);
+    editPasswordForm.addEventListener('submit', handleEditPassword);
+    
+    // Set up modal event listeners
+    addPasswordModal.addEventListener('click', (e) => {
+        if (e.target === addPasswordModal) {
+            closeAddPasswordModal();
+        }
+    });
+    
+    viewPasswordModal.addEventListener('click', (e) => {
+        if (e.target === viewPasswordModal) {
+            closeViewPasswordModal();
+        }
+    });
+    
+    editPasswordModal.addEventListener('click', (e) => {
+        if (e.target === editPasswordModal) {
+            closeEditPasswordModal();
+        }
+    });
+    
+    // Set up real-time listener
+    setupRealtimeListener();
+});
+
+// Authentication functions
+function toggleAuthMode() {
+    const isLoginVisible = loginForm.style.display !== 'none';
+    loginForm.style.display = isLoginVisible ? 'none' : 'block';
+    registerForm.style.display = isLoginVisible ? 'block' : 'none';
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    
+    if (!email || !password) {
+        showToast('Please fill in all fields', 'error');
+        return;
+    }
+    
+    // Basic email validation
+    if (!email.includes('@')) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        console.log('Attempting login with email:', email);
+        await auth.signInWithEmailAndPassword(email, password);
+        showToast('Successfully signed in!', 'success');
+    } catch (error) {
+        console.error('Login error:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        // More specific error handling
+        let errorMessage = '';
+        switch(error.code) {
+            case 'auth/invalid-login-credentials':
+                errorMessage = 'Invalid email or password. Please check your credentials or create a new account.';
+                break;
+            case 'auth/user-not-found':
+                errorMessage = 'No account found with this email. Please sign up first.';
+                break;
+            case 'auth/wrong-password':
+                errorMessage = 'Incorrect password. Please try again.';
+                break;
+            case 'auth/invalid-email':
+                errorMessage = 'Invalid email address format.';
+                break;
+            case 'auth/user-disabled':
+                errorMessage = 'This account has been disabled.';
+                break;
+            case 'auth/too-many-requests':
+                errorMessage = 'Too many failed attempts. Please try again later.';
+                break;
+            default:
+                errorMessage = `Login failed: ${error.message}`;
+        }
+        
+        showToast(errorMessage, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    
+    if (!email || !password) {
+        showToast('Please fill in all fields', 'error');
+        return;
+    }
+    
+    // Basic email validation
+    if (!email.includes('@')) {
+        showToast('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    if (password.length < 6) {
+        showToast('Password must be at least 6 characters', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        console.log('Attempting registration with email:', email);
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        console.log('Registration successful! User ID:', userCredential.user.uid);
+        showToast('Account created successfully!', 'success');
+    } catch (error) {
+        console.error('Registration error:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        
+        // More specific error handling
+        let errorMessage = '';
+        switch(error.code) {
+            case 'auth/email-already-in-use':
+                errorMessage = 'An account with this email already exists. Please sign in instead.';
+                break;
+            case 'auth/invalid-email':
+                errorMessage = 'Invalid email address format.';
+                break;
+            case 'auth/weak-password':
+                errorMessage = 'Password is too weak. Please use at least 6 characters.';
+                break;
+            case 'auth/operation-not-allowed':
+                errorMessage = 'Email/password accounts are not enabled. Please contact support.';
+                break;
+            default:
+                errorMessage = `Registration failed: ${error.message}`;
+        }
+        
+        showToast(errorMessage, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function logout() {
+    try {
+        await auth.signOut();
+        passwords = [];
+        showToast('Successfully signed out', 'info');
+    } catch (error) {
+        console.error('Logout error:', error);
+        showToast('Error signing out', 'error');
+    }
+}
+
+// UI functions
+function showAuth() {
+    authSection.style.display = 'block';
+    dashboardSection.style.display = 'none';
+    userInfo.style.display = 'none';
+}
+
+function showDashboard() {
+    authSection.style.display = 'none';
+    dashboardSection.style.display = 'block';
+    userInfo.style.display = 'flex';
+}
+
+function showLoading(show) {
+    loadingOverlay.style.display = show ? 'block' : 'none';
+}
+
+function showToast(message, type = 'info') {
+    const toastContent = toast.querySelector('.toast-content');
+    const toastIcon = toast.querySelector('.toast-icon');
+    const toastMessage = toast.querySelector('.toast-message');
+    
+    // Set icon based on type
+    const icons = {
+        success: 'fas fa-check-circle',
+        error: 'fas fa-exclamation-circle',
+        info: 'fas fa-info-circle'
+    };
+    
+    toastIcon.className = `toast-icon ${icons[type] || icons.info}`;
+    toastMessage.textContent = message;
+    toast.className = `toast ${type}`;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+// Encryption functions
+function encryptPassword(password, key) {
+    try {
+        return CryptoJS.AES.encrypt(password, key).toString();
+    } catch (error) {
+        console.error('Encryption error:', error);
+        throw new Error('Failed to encrypt password');
+    }
+}
+
+function decryptPassword(encryptedPassword, key) {
+    try {
+        const bytes = CryptoJS.AES.decrypt(encryptedPassword, key);
+        return bytes.toString(CryptoJS.enc.Utf8);
+    } catch (error) {
+        console.error('Decryption error:', error);
+        throw new Error('Failed to decrypt password');
+    }
+}
+
+// Password management functions
+function setupRealtimeListener() {
+    // This will be called when user logs in
+    auth.onAuthStateChanged((user) => {
+        if (user && currentUser) {
+            // Set up real-time listener for user's passwords
+            db.collection('passwords')
+                .where('userId', '==', user.uid)
+                .orderBy('createdAt', 'desc')
+                .onSnapshot((snapshot) => {
+                    passwords = [];
+                    snapshot.forEach(doc => {
+                        passwords.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    renderPasswords();
+                }, (error) => {
+                    console.error('Real-time listener error:', error);
+                    showToast('Error syncing passwords', 'error');
+                });
+        }
+    });
+}
+
+async function loadPasswords() {
+    if (!currentUser) return;
+    
+    showLoading(true);
+    
+    try {
+        const snapshot = await db.collection('passwords')
+            .where('userId', '==', currentUser.uid)
+            .orderBy('createdAt', 'desc')
+            .get();
+        
+        passwords = [];
+        snapshot.forEach(doc => {
+            passwords.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+        
+        renderPasswords();
+    } catch (error) {
+        console.error('Error loading passwords:', error);
+        showToast('Error loading passwords', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function renderPasswords() {
+    if (passwords.length === 0) {
+        passwordsGrid.style.display = 'none';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    passwordsGrid.style.display = 'grid';
+    emptyState.style.display = 'none';
+    
+    passwordsGrid.innerHTML = passwords.map(password => {
+        const domain = extractDomain(password.websiteUrl || password.website);
+        const strength = getPasswordStrength(password.password);
+        
+        return `
+            <div class="password-card" onclick="viewPassword('${password.id}')">
+                <div class="password-card-header">
+                    <div class="website-icon">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <div class="password-card-info">
+                        <h3>${escapeHtml(password.website)}</h3>
+                        <p>${escapeHtml(password.username)}</p>
+                    </div>
+                </div>
+                <div class="password-card-footer">
+                    <span class="password-strength strength-${strength.level}">
+                        ${strength.text}
+                    </span>
+                    <div class="card-actions">
+                        <button class="btn-icon" onclick="event.stopPropagation(); copyPassword('${password.id}')" title="Copy Password">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn-icon" onclick="event.stopPropagation(); editPasswordById('${password.id}')" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon" onclick="event.stopPropagation(); deletePasswordConfirm('${password.id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function filterPasswords() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const filteredPasswords = passwords.filter(password => 
+        password.website.toLowerCase().includes(searchTerm) ||
+        password.username.toLowerCase().includes(searchTerm) ||
+        (password.websiteUrl && password.websiteUrl.toLowerCase().includes(searchTerm)) ||
+        (password.notes && password.notes.toLowerCase().includes(searchTerm))
+    );
+    
+    if (filteredPasswords.length === 0 && searchTerm) {
+        passwordsGrid.innerHTML = `
+            <div class="empty-state" style="grid-column: 1 / -1;">
+                <i class="fas fa-search"></i>
+                <h3>No passwords found</h3>
+                <p>Try adjusting your search terms</p>
+            </div>
+        `;
+        passwordsGrid.style.display = 'grid';
+        emptyState.style.display = 'none';
+    } else {
+        // Temporarily replace passwords array for rendering
+        const originalPasswords = passwords;
+        passwords = filteredPasswords;
+        renderPasswords();
+        passwords = originalPasswords;
+    }
+}
+
+// Modal functions
+function showAddPasswordModal() {
+    passwordForm.reset();
+    addPasswordModal.style.display = 'block';
+    document.getElementById('website').focus();
+}
+
+function closeAddPasswordModal() {
+    addPasswordModal.style.display = 'none';
+}
+
+async function handleAddPassword(e) {
+    e.preventDefault();
+    
+    const website = document.getElementById('website').value;
+    const websiteUrl = document.getElementById('websiteUrl').value;
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const notes = document.getElementById('notes').value;
+    
+    if (!website || !username || !password) {
+        showToast('Please fill in required fields', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const encryptedPassword = encryptPassword(password, systemEncryptionKey);
+        
+        await db.collection('passwords').add({
+            userId: currentUser.uid,
+            website: website,
+            websiteUrl: websiteUrl,
+            username: username,
+            password: encryptedPassword,
+            notes: notes,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        closeAddPasswordModal();
+        showToast('Password saved successfully!', 'success');
+    } catch (error) {
+        console.error('Error saving password:', error);
+        showToast('Error saving password', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function viewPassword(passwordId) {
+    const password = passwords.find(p => p.id === passwordId);
+    if (!password) return;
+    
+    currentPasswordId = passwordId;
+    
+    try {
+        const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
+        
+        document.getElementById('viewWebsite').textContent = password.website;
+        document.getElementById('websiteUrlText').textContent = password.websiteUrl || 'No URL provided';
+        document.getElementById('usernameText').textContent = password.username;
+        document.getElementById('passwordText').textContent = '••••••••';
+        document.getElementById('passwordText').dataset.password = decryptedPassword;
+        document.getElementById('viewNotes').textContent = password.notes || 'No notes';
+        
+        // Reset password visibility
+        document.getElementById('toggleIcon').className = 'fas fa-eye';
+        
+        viewPasswordModal.style.display = 'block';
+    } catch (error) {
+        console.error('Error decrypting password:', error);
+        showToast('Error decrypting password.', 'error');
+    }
+}
+
+function closeViewPasswordModal() {
+    viewPasswordModal.style.display = 'none';
+    currentPasswordId = null;
+}
+
+function editPassword() {
+    if (!currentPasswordId) return;
+    
+    const password = passwords.find(p => p.id === currentPasswordId);
+    if (!password) return;
+    
+    try {
+        const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
+        
+        // Fill edit form with current data
+        document.getElementById('editWebsite').value = password.website;
+        document.getElementById('editWebsiteUrl').value = password.websiteUrl || '';
+        document.getElementById('editUsername').value = password.username;
+        document.getElementById('editPassword').value = decryptedPassword;
+        document.getElementById('editNotes').value = password.notes || '';
+        
+        editingPasswordId = currentPasswordId;
+        closeViewPasswordModal();
+        editPasswordModal.style.display = 'block';
+    } catch (error) {
+        console.error('Error decrypting password for edit:', error);
+        showToast('Error loading password for edit', 'error');
+    }
+}
+
+function editPasswordById(passwordId) {
+    const password = passwords.find(p => p.id === passwordId);
+    if (!password) return;
+    
+    try {
+        const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
+        
+        // Fill edit form with current data
+        document.getElementById('editWebsite').value = password.website;
+        document.getElementById('editWebsiteUrl').value = password.websiteUrl || '';
+        document.getElementById('editUsername').value = password.username;
+        document.getElementById('editPassword').value = decryptedPassword;
+        document.getElementById('editNotes').value = password.notes || '';
+        
+        editingPasswordId = passwordId;
+        editPasswordModal.style.display = 'block';
+    } catch (error) {
+        console.error('Error decrypting password for edit:', error);
+        showToast('Error loading password for edit', 'error');
+    }
+}
+
+function closeEditPasswordModal() {
+    editPasswordModal.style.display = 'none';
+    editingPasswordId = null;
+}
+
+async function handleEditPassword(e) {
+    e.preventDefault();
+    
+    if (!editingPasswordId) return;
+    
+    const website = document.getElementById('editWebsite').value;
+    const websiteUrl = document.getElementById('editWebsiteUrl').value;
+    const username = document.getElementById('editUsername').value;
+    const password = document.getElementById('editPassword').value;
+    const notes = document.getElementById('editNotes').value;
+    
+    if (!website || !username || !password) {
+        showToast('Please fill in required fields', 'error');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const encryptedPassword = encryptPassword(password, systemEncryptionKey);
+        
+        await db.collection('passwords').doc(editingPasswordId).update({
+            website: website,
+            websiteUrl: websiteUrl,
+            username: username,
+            password: encryptedPassword,
+            notes: notes,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        closeEditPasswordModal();
+        showToast('Password updated successfully!', 'success');
+    } catch (error) {
+        console.error('Error updating password:', error);
+        showToast('Error updating password', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function toggleViewPassword() {
+    const passwordText = document.getElementById('passwordText');
+    const toggleIcon = document.getElementById('toggleIcon');
+    const actualPassword = passwordText.dataset.password;
+    
+    if (passwordText.textContent === '••••••••') {
+        passwordText.textContent = actualPassword;
+        toggleIcon.className = 'fas fa-eye-slash';
+    } else {
+        passwordText.textContent = '••••••••';
+        toggleIcon.className = 'fas fa-eye';
+    }
+}
+
+async function deletePassword() {
+    if (!currentPasswordId) return;
+    
+    if (!confirm('Are you sure you want to delete this password?')) {
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        await db.collection('passwords').doc(currentPasswordId).delete();
+        closeViewPasswordModal();
+        showToast('Password deleted successfully', 'info');
+    } catch (error) {
+        console.error('Error deleting password:', error);
+        showToast('Error deleting password', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function copyPassword(passwordId) {
+    const password = passwords.find(p => p.id === passwordId);
+    if (!password) return;
+    
+    try {
+        const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
+        await navigator.clipboard.writeText(decryptedPassword);
+        showToast('Password copied to clipboard', 'success');
+    } catch (error) {
+        console.error('Error copying password:', error);
+        showToast('Error copying password', 'error');
+    }
+}
+
+async function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    const text = elementId === 'passwordText' ? 
+        element.dataset.password || element.textContent : 
+        element.textContent;
+    
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast('Copied to clipboard', 'success');
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        showToast('Error copying to clipboard', 'error');
+    }
+}
+
+function deletePasswordConfirm(passwordId) {
+    if (confirm('Are you sure you want to delete this password?')) {
+        deletePasswordById(passwordId);
+    }
+}
+
+async function deletePasswordById(passwordId) {
+    showLoading(true);
+    
+    try {
+        await db.collection('passwords').doc(passwordId).delete();
+        showToast('Password deleted successfully', 'info');
+    } catch (error) {
+        console.error('Error deleting password:', error);
+        showToast('Error deleting password', 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Utility functions
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    const button = input.nextElementSibling;
+    const icon = button.querySelector('i');
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+function extractDomain(url) {
+    try {
+        return new URL(url.includes('://') ? url : `https://${url}`).hostname;
+    } catch {
+        return url;
+    }
+}
+
+function generatePassword() {
+    const length = 16;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
+    let password = "";
+    
+    // Ensure at least one character from each type
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const numbers = "0123456789";
+    const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+    
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += symbols[Math.floor(Math.random() * symbols.length)];
+    
+    // Fill the rest randomly
+    for (let i = password.length; i < length; i++) {
+        password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    
+    // Shuffle the password
+    password = password.split('').sort(() => Math.random() - 0.5).join('');
+    
+    document.getElementById('password').value = password;
+    showToast('Strong password generated!', 'success');
+}
+
+function generatePasswordForEdit() {
+    const length = 16;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?";
+    let password = "";
+    
+    // Ensure at least one character from each type
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const numbers = "0123456789";
+    const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+    
+    password += lowercase[Math.floor(Math.random() * lowercase.length)];
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += symbols[Math.floor(Math.random() * symbols.length)];
+    
+    // Fill the rest randomly
+    for (let i = password.length; i < length; i++) {
+        password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    
+    // Shuffle the password
+    password = password.split('').sort(() => Math.random() - 0.5).join('');
+    
+    document.getElementById('editPassword').value = password;
+    showToast('Strong password generated!', 'success');
+}
+
+function getPasswordStrength(password) {
+    if (!password) return { level: 'weak', text: 'Weak' };
+    
+    let score = 0;
+    
+    // Length check
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    
+    // Character variety checks
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    
+    if (score >= 5) return { level: 'strong', text: 'Strong' };
+    if (score >= 3) return { level: 'medium', text: 'Medium' };
+    return { level: 'weak', text: 'Weak' };
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getErrorMessage(errorCode) {
+    const errorMessages = {
+        'auth/user-not-found': 'No account found with this email',
+        'auth/wrong-password': 'Incorrect password',
+        'auth/email-already-in-use': 'Email is already registered',
+        'auth/weak-password': 'Password is too weak',
+        'auth/invalid-email': 'Invalid email address',
+        'auth/too-many-requests': 'Too many failed attempts. Try again later',
+        'auth/network-request-failed': 'Network error. Check your connection'
+    };
+    
+    return errorMessages[errorCode] || 'An error occurred. Please try again.';
+}
