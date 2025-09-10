@@ -395,10 +395,9 @@ function setupRealtimeListener() {
     // This will be called when user logs in
     auth.onAuthStateChanged((user) => {
         if (user && currentUser) {
-            // Set up real-time listener for user's passwords
+            // Set up real-time listener for user's passwords (simplified query)
             db.collection('passwords')
                 .where('userId', '==', user.uid)
-                .orderBy('createdAt', 'desc')
                 .onSnapshot((snapshot) => {
                     passwords = [];
                     snapshot.forEach(doc => {
@@ -407,6 +406,14 @@ function setupRealtimeListener() {
                             ...doc.data()
                         });
                     });
+                    
+                    // Sort on client-side instead of server-side
+                    passwords.sort((a, b) => {
+                        const dateA = a.createdAt ? a.createdAt.toDate() : new Date(0);
+                        const dateB = b.createdAt ? b.createdAt.toDate() : new Date(0);
+                        return dateB - dateA; // Descending order (newest first)
+                    });
+                    
                     renderPasswords();
                 }, (error) => {
                     console.error('Real-time listener error:', error);
@@ -422,9 +429,9 @@ async function loadPasswords() {
     showLoading(true);
     
     try {
+        // Simplified query without orderBy to avoid index requirement
         const snapshot = await db.collection('passwords')
             .where('userId', '==', currentUser.uid)
-            .orderBy('createdAt', 'desc')
             .get();
         
         passwords = [];
@@ -433,6 +440,13 @@ async function loadPasswords() {
                 id: doc.id,
                 ...doc.data()
             });
+        });
+        
+        // Sort on client-side
+        passwords.sort((a, b) => {
+            const dateA = a.createdAt ? a.createdAt.toDate() : new Date(0);
+            const dateB = b.createdAt ? b.createdAt.toDate() : new Date(0);
+            return dateB - dateA; // Descending order (newest first)
         });
         
         renderPasswords();
