@@ -1,6 +1,6 @@
 # SecureVault - Password Manager
 
-A modern, real-time password manager web application with AES encryption and Firebase backend.
+A password manager web application with AES encryption and Firebase backend.
 
 ## Features
 
@@ -140,13 +140,6 @@ SecureVault/
 5. **Retrieval**: Encrypted passwords are downloaded and decrypted locally
 6. **Real-time Sync**: Changes are synced across devices in real-time
 
-## Browser Compatibility
-
-- Chrome 60+
-- Firefox 55+
-- Safari 12+
-- Edge 79+
-
 ## Technologies Used
 
 - **Frontend**: HTML5, CSS3, Vanilla JavaScript
@@ -155,43 +148,3 @@ SecureVault/
 - **Encryption**: CryptoJS (AES-256)
 - **Icons**: Font Awesome
 - **Fonts**: Google Fonts (Inter)
-
-## Key Features
-
-### Password Generator
-- Generates strong 16-character passwords
-- Includes uppercase, lowercase, numbers, and symbols
-- Ensures password complexity requirements
-- One-click generation in both add and edit modes
-
-### Real-time Synchronization
-- Live updates using Firebase Firestore listeners
-- Instant sync across multiple devices
-- No manual refresh required
-- Seamless collaborative experience
-
-### Enhanced Security
-- System-level encryption key management
-- Client-side encryption before transmission
-- Secure password storage with AES-256
-- No plain text password storage anywhere
-
-## Contributing
-
-1. Fork the repository
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
-
-## License
-
-This project is open source and available under the MIT License.
-
-## Recent Updates
-
-- Removed master password requirement for easier use
-- Added real-time synchronization across devices
-- Enhanced password management with edit functionality
-- Improved UI with password generator integration
-- Added website URL field for better organization
-- Streamlined user experience with automatic updates
