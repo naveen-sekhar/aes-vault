@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AES Encryption/Decryption Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            background: #f9f9f9;
+        }
+        
+        h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        textarea, input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 5px;
+            word-break: break-all;
+            font-family: monospace;
+        }
+        
+        .error {
+            background: #ffe8e8;
+            border-color: #f44336;
+            color: #d32f2f;
+        }
+        
+        .key-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .key-info h3 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+        
+        .spec-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        
+        .spec-table th, .spec-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .spec-table th {
+            background: #f2f2f2;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 AES Encryption/Decryption Tool</h1>
+        
+        <div class="key-info">
+            <h3>🔑 Encryption Configuration</h3>
+            <p><strong>Secret Key:</strong> "SecureVault2024" (15 characters)</p>
+            <p><strong>Key Derivation:</strong> PBKDF2 with 1000 iterations + random salt</p>
+            
+            <table class="spec-table">
+                <tr><th>Parameter</th><th>Value</th></tr>
+                <tr><td>Algorithm</td><td>AES-256</td></tr>
+                <tr><td>Mode</td><td>CBC (Cipher Block Chaining)</td></tr>
+                <tr><td>Padding</td><td>PKCS#7</td></tr>
+                <tr><td>Key Size</td><td>256 bits (32 bytes)</td></tr>
+                <tr><td>IV Size</td><td>128 bits (16 bytes)</td></tr>
+            </table>
+        </div>
+        
+        <!-- Encryption Section -->
+        <div class="section">
+            <h2>🔒 Encrypt Text</h2>
+            <div class="input-group">
+                <label for="plainText">Enter text to encrypt:</label>
+                <textarea id="plainText" placeholder="Type your text here..."></textarea>
+            </div>
+            <button onclick="encryptText()">🔒 Encrypt</button>
+            <div id="encryptResult"></div>
+        </div>
+        
+        <!-- Decryption Section -->
+        <div class="section">
+            <h2>🔓 Decrypt Text</h2>
+            <div class="input-group">
+                <label for="encryptedText">Enter encrypted text to decrypt:</label>
+                <textarea id="encryptedText" placeholder="Paste encrypted text here..."></textarea>
+            </div>
+            <button onclick="decryptText()">🔓 Decrypt</button>
+            <div id="decryptResult"></div>
+        </div>
+        
+    </div>
+
+    <script>
+        // Same configuration as your SecureVault project
+        const systemEncryptionKey = 'SecureVault2024';
+        
+        // Encryption function (same as your project)
+        function encryptPassword(password, key) {
+            try {
+                return CryptoJS.AES.encrypt(password, key).toString();
+            } catch (error) {
+                console.error('Encryption error:', error);
+                throw new Error('Failed to encrypt password');
+            }
+        }
+        
+        // Decryption function (same as your project)
+        function decryptPassword(encryptedPassword, key) {
+            try {
+                const bytes = CryptoJS.AES.decrypt(encryptedPassword, key);
+                return bytes.toString(CryptoJS.enc.Utf8);
+            } catch (error) {
+                console.error('Decryption error:', error);
+                throw new Error('Failed to decrypt password');
+            }
+        }
+        
+        // UI Functions
+        function encryptText() {
+            const plainText = document.getElementById('plainText').value;
+            const resultDiv = document.getElementById('encryptResult');
+            
+            if (!plainText.trim()) {
+                showResult(resultDiv, 'Please enter some text to encrypt', true);
+                return;
+            }
+            
+            try {
+                const encrypted = encryptPassword(plainText, systemEncryptionKey);
+                showResult(resultDiv, `<strong>Encrypted Result:</strong><br>${encrypted}`);
+            } catch (error) {
+                showResult(resultDiv, `<strong>Encryption Error:</strong> ${error.message}`, true);
+            }
+        }
+        
+        function decryptText() {
+            const encryptedText = document.getElementById('encryptedText').value;
+            const resultDiv = document.getElementById('decryptResult');
+            
+            if (!encryptedText.trim()) {
+                showResult(resultDiv, 'Please enter encrypted text to decrypt', true);
+                return;
+            }
+            
+            try {
+                const decrypted = decryptPassword(encryptedText, systemEncryptionKey);
+                if (!decrypted) {
+                    showResult(resultDiv, 'Decryption failed - invalid encrypted data or wrong key', true);
+                } else {
+                    showResult(resultDiv, `<strong>Decrypted Result:</strong><br>${decrypted}`);
+                }
+            } catch (error) {
+                showResult(resultDiv, `<strong>Decryption Error:</strong> ${error.message}`, true);
+            }
+        }
+        
+
+        
+        function showResult(element, content, isError = false) {
+            element.innerHTML = `<div class="result ${isError ? 'error' : ''}">${content}</div>`;
+        }
+        
+        // Page load handler
+        window.onload = function() {
+            console.log('AES Test Page Loaded');
+            console.log('Secret Key:', systemEncryptionKey);
+            console.log('CryptoJS loaded:', typeof CryptoJS !== 'undefined');
+        };
+    </script>
+</body>
+</html>
