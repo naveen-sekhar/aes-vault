@@ -349,9 +349,21 @@ function showLoading(show) {
 }
 
 function showToast(message, type = 'info') {
+    console.log('showToast called with:', message, type);
+    
+    if (!toast) {
+        console.error('Toast element not found!');
+        return;
+    }
+    
     const toastContent = toast.querySelector('.toast-content');
     const toastIcon = toast.querySelector('.toast-icon');
     const toastMessage = toast.querySelector('.toast-message');
+    
+    if (!toastIcon || !toastMessage) {
+        console.error('Toast sub-elements not found!');
+        return;
+    }
     
     // Set icon based on type
     const icons = {
@@ -365,8 +377,11 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.classList.add('show');
     
+    console.log('Toast should now be visible with class:', toast.className);
+    
     setTimeout(() => {
         toast.classList.remove('show');
+        console.log('Toast hidden');
     }, 3000);
 }
 
@@ -473,8 +488,8 @@ function renderPasswords() {
         const strength = getPasswordStrength(password.password);
         
         return `
-            <div class="password-card" onclick="viewPassword('${password.id}')">
-                <div class="password-card-header">
+            <div class="password-card">
+                <div class="password-card-header" onclick="viewPassword('${password.id}')" style="cursor: pointer;">
                     <div class="website-icon">
                         <i class="fas fa-globe"></i>
                     </div>
@@ -488,13 +503,13 @@ function renderPasswords() {
                         ${strength.text}
                     </span>
                     <div class="card-actions">
-                        <button class="btn-icon" onclick="event.stopPropagation(); copyPassword('${password.id}')" title="Copy Password">
+                        <button class="btn-icon copy-btn" data-password-id="${password.id}" title="Copy Password">
                             <i class="fas fa-copy"></i>
                         </button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); editPasswordById('${password.id}')" title="Edit">
+                        <button class="btn-icon edit-btn" data-password-id="${password.id}" title="Edit">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn-icon" onclick="event.stopPropagation(); deletePasswordConfirm('${password.id}')" title="Delete">
+                        <button class="btn-icon delete-btn" data-password-id="${password.id}" title="Delete">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -502,6 +517,55 @@ function renderPasswords() {
             </div>
         `;
     }).join('');
+    
+    // Add event listeners for action buttons after DOM update
+    // Use immediate execution with requestAnimationFrame for better timing
+    requestAnimationFrame(() => {
+        // Copy buttons
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                
+                const passwordId = this.getAttribute('data-password-id');
+                console.log('Copy button clicked for:', passwordId);
+                copyPassword(passwordId);
+            });
+        });
+        
+        // Edit buttons
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+            btn.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                
+                const passwordId = this.getAttribute('data-password-id');
+                console.log('Edit button clicked for:', passwordId);
+                editPasswordById(passwordId);
+            });
+        });
+        
+        // Delete buttons
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                
+                const passwordId = this.getAttribute('data-password-id');
+                console.log('Delete button clicked for:', passwordId);
+                deletePasswordConfirm(passwordId);
+            });
+        });
+        
+        console.log('Event listeners attached to', 
+            document.querySelectorAll('.copy-btn').length, 'copy buttons,',
+            document.querySelectorAll('.edit-btn').length, 'edit buttons,',
+            document.querySelectorAll('.delete-btn').length, 'delete buttons'
+        );
+    });
 }
 
 function filterPasswords() {
@@ -639,9 +703,48 @@ function editPassword() {
     }
 }
 
+function handleCopyClick(event, passwordId) {
+    // Prevent the card click event from firing
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    
+    // Call copy function
+    copyPassword(passwordId);
+}
+
+function handleEditClick(event, passwordId) {
+    // Prevent any parent click events
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    }
+    
+    // Call edit function directly
+    editPasswordById(passwordId);
+}
+
+function handleDeleteClick(event, passwordId) {
+    // Prevent any parent click events
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+    }
+    
+    // Call delete function
+    deletePasswordConfirm(passwordId);
+}
+
 function editPasswordById(passwordId) {
+    console.log('editPasswordById function called with:', passwordId);
+    
     const password = passwords.find(p => p.id === passwordId);
-    if (!password) return;
+    if (!password) {
+        console.log('Password not found for ID:', passwordId);
+        return;
+    }
     
     try {
         const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
@@ -654,7 +757,13 @@ function editPasswordById(passwordId) {
         document.getElementById('editNotes').value = password.notes || '';
         
         editingPasswordId = passwordId;
+        
+        // Close view modal if it's open and open edit modal
+        console.log('Closing view modal and opening edit modal');
+        closeViewPasswordModal();
         editPasswordModal.style.display = 'block';
+        console.log('Edit modal should now be visible');
+        
     } catch (error) {
         console.error('Error decrypting password for edit:', error);
         showToast('Error loading password for edit', 'error');
@@ -742,13 +851,19 @@ async function deletePassword() {
 }
 
 async function copyPassword(passwordId) {
+    console.log('copyPassword function called with:', passwordId);
+    
     const password = passwords.find(p => p.id === passwordId);
-    if (!password) return;
+    if (!password) {
+        console.log('Password not found for ID:', passwordId);
+        return;
+    }
     
     try {
         const decryptedPassword = decryptPassword(password.password, systemEncryptionKey);
         await navigator.clipboard.writeText(decryptedPassword);
-        showToast('Password copied to clipboard', 'success');
+        console.log('Password copied successfully');
+        showToast('Password copied to clipboard!', 'success');
     } catch (error) {
         console.error('Error copying password:', error);
         showToast('Error copying password', 'error');
